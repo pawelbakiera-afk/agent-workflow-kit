@@ -1,0 +1,59 @@
+# CI dla projektu z frontendem node + backendem python (monorepo w jednym repo).
+# Wariant sprawdzony w produkcji (React+Vite / FastAPI): dwa niezależne joby, oba wymagane.
+# Jedyna bramka przed mergem — nikt nikogo nie zatwierdza, więc to CI decyduje.
+# Kontrakt → docs/AGENT-WORKFLOW.md
+#
+# INSTALACJA: skopiuj jako .github/workflows/ci.yml i podmień pola {{FILL:…}}.
+# Nazwy jobów (`frontend`, `backend`) MUSZĄ trafić do required status checks — INSTALL.md krok 6.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [{{FILL:MAIN_BRANCH}}]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '{{FILL:NODE_VERSION}}'    # ten sam major co obraz/runtime produkcji
+          cache: npm
+          cache-dependency-path: {{FILL:FRONTEND_DIR}}/package-lock.json
+      - run: npm ci
+        working-directory: {{FILL:FRONTEND_DIR}}
+      # `npm run build` (tsc -b) jest ostrzejsze niż `tsc --noEmit` i łapie błędy typów,
+      # które inaczej wywalają dopiero build obrazu produkcyjnego
+      - run: npm run build
+        working-directory: {{FILL:FRONTEND_DIR}}
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '{{FILL:PYTHON_VERSION}}'  # zgodnie z obrazem produkcji
+          cache: pip
+          cache-dependency-path: {{FILL:BACKEND_DIR}}/requirements*.txt
+      # requirements-dev.txt zaciąga requirements.txt + pytest; obraz prod dostaje
+      # wyłącznie requirements.txt, więc zależności testowe nigdy tam nie trafiają
+      - run: pip install -r {{FILL:BACKEND_DIR}}/requirements-dev.txt
+      # Smoke import: łapie literówki w importach, niezarejestrowany router i rozjazd
+      # wstrzykiwania zależności — klasę błędów, która inaczej wychodzi na prodzie jako 502.
+      # Klient bazy powinien być leniwy, żeby import nie potrzebował credentiali.
+      # Blok `|` zamiast płaskiego skalara: ciąg ": " w nieocytowanym YAML-u kończy klucz
+      # mapy i wywala parsowanie całego workflow (run pada w 0 s, bez logów).
+      - name: import smoke
+        run: |
+          python -c "import {{FILL:APP_ENTRY_MODULE}}; print('routes', len({{FILL:APP_ENTRY_MODULE}}.app.routes))"
+        working-directory: {{FILL:BACKEND_DIR}}
+      - name: pytest
+        run: python -m pytest -q
+        working-directory: {{FILL:BACKEND_DIR}}

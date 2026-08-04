@@ -1,0 +1,38 @@
+# CI dla projektu node/TypeScript (jeden katalog aplikacji).
+# Jedyna bramka przed mergem — nikt nikogo nie zatwierdza, więc to CI decyduje.
+# Kontrakt → docs/AGENT-WORKFLOW.md
+#
+# INSTALACJA: skopiuj jako .github/workflows/ci.yml, podmień {{FILL:APP_DIR}}
+# (np. `frontend` albo `.` jeśli aplikacja jest w korzeniu repo).
+# Nazwa joba (`build`) MUSI trafić do required status checks — patrz INSTALL.md krok 6.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [{{FILL:MAIN_BRANCH}}]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '{{FILL:NODE_VERSION — ten sam major, na którym stoi produkcja}}'
+          cache: npm
+          cache-dependency-path: {{FILL:APP_DIR}}/package-lock.json
+      - run: npm ci
+        working-directory: {{FILL:APP_DIR}}
+      # `npm run build` (tsc -b) jest ostrzejsze niż `tsc --noEmit` i łapie błędy typów,
+      # które inaczej wywalają dopiero build produkcyjny
+      - run: npm run build
+        working-directory: {{FILL:APP_DIR}}
+      # Odkomentuj, jeśli projekt ma testy jednostkowe. Jeśli nie ma — usuń te dwie linie
+      # i NIE udawaj w dokumentacji, że CI testuje logikę.
+      # - run: npm test --if-present
+      #   working-directory: {{FILL:APP_DIR}}

@@ -1,0 +1,30 @@
+# CI dla stacku, którego nie ma w pozostałych szablonach (Go, .NET, Rust, Ruby, PHP,
+# mobile, projekt bez builda…). Struktura jest ta sama; wypełniasz tylko kroki.
+# Kontrakt → docs/AGENT-WORKFLOW.md
+#
+# ZASADA: workflow musi realnie coś sprawdzać. Zielony CI, który nic nie uruchamia, jest
+# GORSZY od braku CI — usypia czujność, a jest jedyną bramką przed mergem (zero review).
+# Minimum sensowne: kompilacja/typy ORAZ testy, jeśli w projekcie istnieją.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [{{FILL:MAIN_BRANCH}}]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Nazwa joba trafia do required status checks (INSTALL.md krok 6) — zmienisz ją później,
+  # musisz zaktualizować też ochronę brancha, inaczej merge zablokuje się na checku-widmie.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # {{FILL:SETUP_STEPS — instalacja toolchainu, np. actions/setup-go@v5, cache zależności}}
+      # {{FILL:INSTALL_STEPS — instalacja zależności projektu}}
+      # {{FILL:BUILD_STEP — kompilacja / sprawdzenie typów; ta sama komenda co BUILD_GATE w /ship}}
+      # {{FILL:TEST_STEP — testy; ta sama komenda co TEST_GATE w /ship}}
+      - run: echo "ZASTAP TE LINIE PRAWDZIWYMI KROKAMI"; exit 1

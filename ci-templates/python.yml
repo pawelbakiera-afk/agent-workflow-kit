@@ -1,0 +1,43 @@
+# CI dla projektu python.
+# Jedyna bramka przed mergem — nikt nikogo nie zatwierdza, więc to CI decyduje.
+# Kontrakt → docs/AGENT-WORKFLOW.md
+#
+# INSTALACJA: skopiuj jako .github/workflows/ci.yml, podmień {{FILL:APP_DIR}} i wersję.
+# Nazwa joba (`test`) MUSI trafić do required status checks — patrz INSTALL.md krok 6.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [{{FILL:MAIN_BRANCH}}]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '{{FILL:PYTHON_VERSION — zgodnie z obrazem/runtime produkcji}}'
+          cache: pip
+          cache-dependency-path: {{FILL:APP_DIR}}/requirements*.txt
+      # Osobny requirements-dev.txt zaciąga requirements.txt + narzędzia testowe, więc
+      # zależności testowe nigdy nie trafiają do obrazu produkcyjnego.
+      - run: pip install -r {{FILL:APP_DIR}}/requirements-dev.txt
+      # Smoke import: łapie literówki w importach, niezarejestrowany router i rozjazd
+      # wstrzykiwania zależności — klasę błędów, która inaczej wychodzi dopiero na prodzie.
+      # Blok `|` zamiast płaskiego skalara: w nieocytowanym YAML-u ciąg ": " kończy klucz
+      # mapy i wywala parsowanie całego workflow (run pada w 0 s, bez logów).
+      - name: import smoke
+        run: |
+          python -c "import {{FILL:APP_ENTRY_MODULE — np. main}}; print('ok')"
+        working-directory: {{FILL:APP_DIR}}
+      # `python -m pytest`, nie samo `pytest` — moduły importujące się płasko
+      # (`from deps import …`) wymagają katalogu w sys.path.
+      - name: pytest
+        run: python -m pytest -q
+        working-directory: {{FILL:APP_DIR}}
