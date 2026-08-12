@@ -14,7 +14,10 @@ jak napisać własny recipe · jak zaktualizować kit w działającym repo.
 | `guard.ps1` / `guard.sh` — sekcja deploy | tylko wzorce w CONFIG |
 | `guard.tests.*` — przypadki gitowe | **nie** |
 | `guard.tests.*` — przypadki deployowe | tak, z recipe |
+| `session-start.ps1` / `session-start.sh` | **nie** — tylko blok CONFIG (`MainBranch`, `ContractDoc`) |
+| `session-start.tests.*` | **nie** |
 | `commands/start.md` | prawie nie (branch, inicjały) |
+| `commands/verify.md` | bramki jakości (build/test/lint) |
 | `commands/ship.md` | bramki jakości + slug repo |
 | `commands/setup.md` | zależności, narzędzia deployu, sekrety |
 | `commands/deploy.md`, `rollback.md` | **całkowicie** — bierz z recipe |
@@ -41,8 +44,9 @@ zwracać pustkę (INSTALL.md krok 5).
 | `TEAM_SIZE` | pytanie/`git shortlog -sne` | kontrakt |
 | `INITIALS_RULE` | wzorzec adresów w `git log` | start, kontrakt |
 | `EMAIL_DOMAIN` | jw. | setup |
-| `BUILD_GATE` | skrypty `package.json` / istniejące CI | ship, setup, deploy, kontrakt |
-| `TEST_GATE` | `pytest.ini`, `tests/`, skrypty | ship, setup, deploy, kontrakt |
+| `BUILD_GATE` | skrypty `package.json` / istniejące CI | verify, ship, setup, deploy, kontrakt |
+| `TEST_GATE` | `pytest.ini`, `tests/`, skrypty | verify, ship, setup, deploy, kontrakt |
+| `LINT_GATE` | skrypty `package.json` / config lintera (`.eslintrc`, `ruff.toml`…); „brak", jeśli nie ma | verify |
 | `CI_CHECK_NAMES` | nazwy jobów w `ci.yml` | kontrakt, ochrona brancha |
 | `DEPS_SETUP` | menedżery pakietów w repo | setup |
 | `LOCAL_SECRETS` | `.env.example`, README | setup |

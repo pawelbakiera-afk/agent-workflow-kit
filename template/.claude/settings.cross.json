@@ -1,7 +1,35 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "_comment": "Mixed-OS team: both guards are registered. On any given machine one of them runs and the other cannot be spawned (powershell.exe on macOS, bash on a Windows box without Git Bash). A missing launcher shows a non-blocking 'hook error' notice in the transcript -- it never blocks a tool call, but it is visible noise. If your team is single-OS, use settings.windows.json or settings.unix.json instead.",
+  "_comment": "Mixed-OS team: both guards (and both session-start probes) are registered. On any given machine one of each pair runs and the other cannot be spawned (powershell.exe on macOS, bash on a Windows box without Git Bash). A missing launcher shows a non-blocking 'hook error' notice in the transcript -- it never blocks a tool call, but it is visible noise. If your team is single-OS, use settings.windows.json or settings.unix.json instead.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe",
+            "args": [
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.ps1"
+            ],
+            "timeout": 25,
+            "statusMessage": "Checking tree state and open PRs..."
+          },
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.sh"
+            ],
+            "timeout": 25,
+            "statusMessage": "Checking tree state and open PRs..."
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash|PowerShell",

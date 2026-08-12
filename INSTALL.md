@@ -69,15 +69,24 @@ Zadaj **jedną** turę pytań, z propozycją odpowiedzi (nie otwarte „jak chce
 Z kitu do docelowego repo:
 
 ```
-template/.claude/hooks/guard.ps1        -> .claude/hooks/guard.ps1
-template/.claude/hooks/guard.tests.ps1  -> .claude/hooks/guard.tests.ps1
-template/.claude/hooks/guard.sh         -> .claude/hooks/guard.sh
-template/.claude/hooks/guard.tests.sh   -> .claude/hooks/guard.tests.sh
-template/.claude/commands/start.md      -> .claude/commands/start.md
-template/.claude/commands/ship.md       -> .claude/commands/ship.md
-template/.claude/commands/setup.md      -> .claude/commands/setup.md
-template/docs/AGENT-WORKFLOW.md         -> docs/AGENT-WORKFLOW.md
+template/.claude/hooks/guard.ps1               -> .claude/hooks/guard.ps1
+template/.claude/hooks/guard.tests.ps1         -> .claude/hooks/guard.tests.ps1
+template/.claude/hooks/guard.sh                -> .claude/hooks/guard.sh
+template/.claude/hooks/guard.tests.sh          -> .claude/hooks/guard.tests.sh
+template/.claude/hooks/session-start.ps1       -> .claude/hooks/session-start.ps1
+template/.claude/hooks/session-start.tests.ps1 -> .claude/hooks/session-start.tests.ps1
+template/.claude/hooks/session-start.sh        -> .claude/hooks/session-start.sh
+template/.claude/hooks/session-start.tests.sh  -> .claude/hooks/session-start.tests.sh
+template/.claude/commands/start.md             -> .claude/commands/start.md
+template/.claude/commands/verify.md            -> .claude/commands/verify.md
+template/.claude/commands/ship.md              -> .claude/commands/ship.md
+template/.claude/commands/setup.md             -> .claude/commands/setup.md
+template/docs/AGENT-WORKFLOW.md                -> docs/AGENT-WORKFLOW.md
 ```
+
+Kopiuj **oba** warianty (`.ps1` i `.sh`) niezależnie od systemu instalującego — tylko jeden z
+nich zostanie wpięty w `settings.json` (krok 4), ale drugi ma czekać gotowy, gdyby zespół
+zatrudnił kogoś na innym systemie.
 
 Deploy i rollback — **z recipe, nie z template**, jeśli recipe je ma:
 
@@ -131,8 +140,12 @@ z opisem, skąd brać wartość → `ADAPT.md` §2. Kolejność, która się nie
    wzorzec nie dopasuje niczego i guard cicho przestanie pilnować deployu.
 2. **Testy guarda**: wklej `$deployCases` / `deploy_cases` z tego samego recipe.
    Projekt bez lokalnego deployu → zostaw puste (i `DeployPattern = ''`).
+2b. **`session-start.ps1` i `session-start.sh`**: te same `MainBranch` / `ContractDoc` co
+   w guardzie — wypełnij razem, żeby oba hooki zgadzały się co do nazwy chronionego brancha
+   i miejsca kontraktu.
 3. **Komendy** `.claude/commands/*.md`: `MAIN_BRANCH`, `REPO_SLUG`, `BUILD_GATE`, `TEST_GATE`,
-   `INITIALS_RULE`, `DEPS_SETUP`, `DEPLOY_TOOLING`, `LOCAL_SECRETS`, `DEPLOY_QUESTION`.
+   `LINT_GATE`, `INITIALS_RULE`, `DEPS_SETUP`, `DEPLOY_TOOLING`, `LOCAL_SECRETS`, `DEPLOY_QUESTION`.
+   `LINT_GATE` (tylko w `verify.md`) → „brak", jeśli projekt nie ma osobnego lintera.
 4. **Kontrakt** `docs/AGENT-WORKFLOW.md`: dodatkowo `TEAM_SIZE`, `CI_CHECK_NAMES`,
    `HOTSPOT_FILES`, `DEPLOY_SECTION`, `ROLLBACK_SECTION`, `MANUAL_ONBOARDING`.
    Sekcje 3–4 (deploy/rollback) napisz **treścią z recipe**, nie ogólnikami.
@@ -207,11 +220,12 @@ Opcje dla człowieka: repo w organizacji, plan Pro/Team, albo repo publiczne.
 
 ## Krok 8. Weryfikacja — bez tego instalacja się nie liczy
 
-1. **Testy guarda** (na tym systemie, na którym pracujesz):
+1. **Testy obu hooków** (na tym systemie, na którym pracujesz):
    - Windows: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .claude/hooks/guard.tests.ps1`
-   - macOS/Linux: `bash .claude/hooks/guard.tests.sh`
+     i analogicznie `session-start.tests.ps1`
+   - macOS/Linux: `bash .claude/hooks/guard.tests.sh` i `bash .claude/hooks/session-start.tests.sh`
 
-   Wymagany ogon: **`FAILURES: 0`**. Typowe przyczyny czerwonego:
+   Wymagany ogon: **`FAILURES: 0`** w każdym z nich. Typowe przyczyny czerwonego:
    - znak spoza ASCII w `guard.ps1` (PowerShell 5.1 czyta `-File` w ANSI → cicha awaria parsowania),
    - brak `jq` **i** `python3` na Unixie (guard nie ma czym sparsować wejścia → fail-open),
    - wzorzec .NET wklejony do `.sh` (krok 5, pułapka 1),
@@ -221,10 +235,12 @@ Opcje dla człowieka: repo w organizacji, plan Pro/Team, albo repo publiczne.
    Jeśli wypełniłeś sekcję deployową, odpal testy **także w checkoutcie bez remote'a `origin`**
    (albo offline) — przypadki deployowe muszą wtedy nadal blokować. Ta ścieżka jest jedynym
    sposobem, żeby wyłapać fail-open na `git fetch`.
-2. **Sanity na żywo:** po zarejestrowaniu hooka nowa sesja Claude Code musi realnie blokować
-   `git commit` na chronionym branchu. Hooki wczytują się przy starcie sesji — jeśli
-   instalujesz w trwającej sesji, powiedz człowiekowi, żeby raz otworzył `/hooks` albo
-   zrestartował Claude Code. **Nie raportuj hooka jako aktywnego, dopóki to się nie stanie.**
+2. **Sanity na żywo:** po zarejestrowaniu hooków nowa sesja Claude Code musi realnie blokować
+   `git commit` na chronionym branchu, **i** musi dostać na starcie raport `session-start`
+   (widoczny w `<system-reminder>` na początku transkryptu). Hooki wczytują się przy starcie
+   sesji — jeśli instalujesz w trwającej sesji, powiedz człowiekowi, żeby raz otworzył `/hooks`
+   albo zrestartował Claude Code. **Nie raportuj żadnego z hooków jako aktywnego, dopóki to
+   się nie stanie.**
 3. **Pierwszy PR = test całego flow.** Wypuść instalację dokładnie tak, jak opisuje `/ship`:
    branch → commit → push → `gh pr create` → `gh pr checks --watch --required` →
    `gh pr merge --squash --delete-branch`. Jeśli ten PR nie przejdzie, kit jest źle
@@ -254,9 +270,10 @@ Jeśli `CLAUDE.md` nie istnieje — utwórz minimalny, z mapą dokumentów i tą
 Tabela: pozycja → `OK` / `pominięte (dlaczego)` / `wymaga człowieka (co dokładnie)`, dla:
 pliki skopiowane · wariant `settings.json` · placeholdery (`grep {{FILL` = 0) · recipe deployu ·
 CI (nazwy jobów) · ochrona brancha (albo dlaczego niedostępna) · testy guarda (`FAILURES: n`) ·
-pierwszy PR (link, wynik CI, merge) · wpis w `CLAUDE.md`.
+testy session-start (`FAILURES: n`) · pierwszy PR (link, wynik CI, merge) · wpis w `CLAUDE.md`.
 
 Na końcu **jawnie**: czego nie dokończyłeś i co człowiek musi zrobić w przeglądarce
 (`gh auth login`, logowanie do chmury, sekrety lokalne, uprawnienia do deployu, plan GitHuba).
-Jedno zdanie na koniec: co się teraz zmienia w codziennej pracy (cztery komendy z sekcji 1
-kontraktu) i że hook zablokuje pracę na chronionym branchu — to nie awaria, to kontrakt.
+Jedno zdanie na koniec: co się teraz zmienia w codziennej pracy (pięć komend z sekcji 1
+kontraktu, w tym opcjonalny `/verify`) i że hooki zablokują pracę na chronionym branchu / będą
+raportować stan drzewa na starcie sesji — to nie awaria, to kontrakt.

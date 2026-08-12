@@ -2,7 +2,7 @@
 
 Repo prowadzi **{{FILL:TEAM_SIZE — np. „dwie osoby"}}, każda przez agenta** (Claude Code). Nikt tu nie pisze
 komend gita ręcznie i nikt nie czeka na czyjąś zgodę. Ten plik jest kontraktem: **sekcja 1 dla
-ludzi, sekcje 2–7 dla agenta** (wykonuj bez dopytywania).
+ludzi, sekcje 2–8 dla agenta** (wykonuj bez dopytywania).
 
 Repozytorium jest jedno: **`{{FILL:REPO_SLUG}}`** = zdalny `origin`. Nie ma forków,
 nie ma drugiego remote'a, nie ma „mojej kopii".
@@ -21,17 +21,20 @@ Zasady 3–5 nie są prośbą — pilnuje ich hook (sekcja 6), który zablokuje 
 
 ---
 
-## 1. Dla ludzi — cztery komendy i tyle
+## 1. Dla ludzi — pięć komend i tyle
 
 | Chcesz…                          | Wpisz                    |
 |----------------------------------|--------------------------|
 | zacząć nowe zadanie              | `/start <krótki opis>`   |
+| sprawdzić przed publikacją       | `/verify`                |
 | opublikować gotową pracę         | `/ship`                  |
 | wypuścić na produkcję            | `/deploy`                |
 | cofnąć produkcję po wpadce       | `/rollback`              |
 
 Nic więcej nie musisz pamiętać. Agent nie pyta o pozwolenie na żaden krok w środku tych
-komend — sam robi branch, commit, push, PR, czeka na CI, scala i sprząta.
+komend — sam robi branch, commit, push, PR, czeka na CI, scala i sprząta. `/verify` jest
+opcjonalne dla ciebie — `/ship` i tak odpali te same bramki przed publikacją — ale jeśli chcesz
+zobaczyć wynik przed commitem, poproś o `/verify`.
 
 **Co widzisz po `/ship`:** link do PR-a, wynik CI, potwierdzenie merge'a. **Po `/deploy`:**
 {{FILL:DEPLOY_REPORT — co user zobaczy, np. „numer nowej rewizji i tag, który mówi, co siedzi na live"}}.
@@ -42,6 +45,69 @@ repo. Produkcja to osobna, świadoma decyzja — `/deploy`.
 ---
 
 ## 2. Kontrakt dla agenta — cykl życia zmiany
+
+### 2.0 Triage — tryb pracy wybiera AGENT, nie człowiek
+
+Ludzie prowadzący to repo pracują wyłącznie przez agenta i **nie mają obowiązku wiedzieć**,
+kiedy poprosić o worktree, subagenta czy świeżą sesję. To twoja robota: rozpoznaj przed pierwszą
+edycją, zdecyduj sam, zamelduj jednym zdaniem. **Nie pytaj o zgodę na tryb** — user może
+nadpisać, ale nie musi wybierać.
+
+**Krok 1 — zbadaj drzewo (zawsze, przed pierwszą edycją).** Jeśli w repo jest hook
+`session-start` (sekcja 6) — jego raport na starcie sesji już zrobił to za ciebie. Jeśli nie:
+
+```
+git status --porcelain=v1 --branch    # gdzie jestem i czy jest brudno
+git worktree list                     # czy ktoś już siedzi obok
+```
+
+| Co widzisz | Tryb |
+|---|---|
+| `{{FILL:MAIN_BRANCH}}`, czysto | zwykły branch (2.1) |
+| `{{FILL:MAIN_BRANCH}}` + zmiany, które **sam** zrobiłeś w tej sesji | branch teraz; zmiany idą z tobą, nic nie ginie |
+| **branch roboczy, którego nie utworzyłeś w tej sesji**, albo niezacommitowane zmiany nie twojego autorstwa | **worktree** — `git worktree add .claude/worktrees/<slug> -b <inicjały>/<typ>/<slug> origin/{{FILL:MAIN_BRANCH}}`. Nigdy `checkout`: przełączenie wyrywa drzewo drugiej sesji w połowie pracy |
+| user prosi „zrób to w tle / drugi agent / przy okazji", a poprzednie zadanie jeszcze żyje | **worktree** |
+
+**Krok 2 — policz niezależne tematy.** Temat = jeden przyszły PR: własny obszar, własne
+uzasadnienie w commicie, sensowny do cofnięcia osobno.
+
+| Tematów | Jak pracujesz | PR-y |
+|---|---|---|
+| 1 | jeden agent, jeden branch, bez ceremonii | 1 |
+| 2–3 | jeden agent, tematy **po kolei** (branch → PR → merge → następny) | 1 na temat |
+| 4+ albo wklejona lista zgłoszeń | najpierw **recon read-only** (subagenty, po jednym na rozłączny obszar), potem **plan na dysk**, potem temat po temacie | 1 na temat |
+
+Nigdy nie łącz kilku tematów w jeden PR „żeby było szybciej" — jeden odrzucony punkt blokuje
+wtedy wszystkie pozostałe, a `git revert` przestaje być narzędziem chirurgicznym.
+
+**Krok 3 — plan na dysk, gdy tematów jest 4+** (np. `docs/tasks/<data>-<slug>.md`, idzie do repo
+razem z pracą): punkt → plik/moduł, grupowanie w PR-y, **dosłowne** decyzje usera, stan każdego
+punktu. Aktualizuj po każdym merge'u. Plan trzymany tylko w kontekście sesji ginie, jeśli sesja
+się przerywa — bez niego długa sesja z wieloma PR-ami nie da się bezpiecznie oddać dalej.
+
+**Krok 4 — handoff, gdy padnie którykolwiek próg** (nie czekaj, aż user zapyta):
+
+- zmergowałeś **drugi** PR w tej sesji,
+- zaczynasz **trzeci** temat,
+- odpalił się ostrzegacz rozmiaru kontekstu, albo sesja idzie już długo,
+- przed tobą recon zupełnie nowego obszaru (świeży kontekst jest tańszy niż doczytywanie).
+
+Wtedy: **domknij bieżący temat** (merge — handoff w połowie zadania jest gorszy niż jego brak),
+zaktualizuj plan, oddaj handoff i powiedz wprost: „resztę zrobimy w świeżej sesji, wklej to".
+
+**Subagenty:**
+
+- **TAK** — recon i audyt read-only (jeden na rozłączny obszar), samodzielna diagnostyka
+  („skąd błąd 500 na tym endpoincie"), zbieranie liczb do rekonsyliacji. Subagent oddaje
+  **konkluzję**, nie kod.
+- **NIE** — równoległe edycje w jednym drzewie (punkty z jednej listy prawie zawsze zbiegają
+  się na wspólnych plikach), decyzje biznesowe, zmiany w plikach z sekcji 2.4 (kolidujące/wrażliwe).
+- Subagent z **własnym worktree** — tylko gdy zadania są w rozłącznych plikach i user jawnie
+  chce równolegle.
+
+**Meldunek — obowiązkowy, jedno zdanie, bez żargonu.** Dobrze: „Widzę 7 zgłoszeń — grupuję w
+3 paczki, robię po kolei, po drugiej zaproponuję świeżą sesję". Źle: „odpalam worktree i fan-out
+subagentów".
 
 ### 2.1 Start zadania (`/start`, albo automatycznie przy pierwszej edycji plików)
 
@@ -136,6 +202,12 @@ blokowany przez hooki — to ścieżka awaryjna.}}
 - **Worktrees** tylko przy naprawdę rozłącznych, długich zadaniach — dla <20 plików koszt
   (osobne środowisko, ponowna instalacja zależności) przewyższa zysk. Zasoby jednorazowe na
   maszynę (serwery dev, przeglądarka do testów) i tak się nie zrównoleglą.
+- **Jedno drzewo robocze = jedna sesja agenta.** Druga równoległa sesja (także własna: „zrób
+  to obok / w tle") dostaje `git worktree add .claude/worktrees/<slug>`. `git checkout` w
+  drzewie, w którym siedzi inna sesja, wyrywa jej pracę w połowie — rozpoznanie tej sytuacji
+  jest w 2.0 (krok 1) i obowiązuje **przed pierwszą edycją**.
+- **Sprzątaj po sobie:** po zmergowaniu `git worktree remove .claude/worktrees/<slug>`.
+  Porzucone worktrees mylą przy `git worktree list` i przy raporcie hooka `session-start`.
 
 ---
 
@@ -168,15 +240,41 @@ Cztery właściwości, o których trzeba wiedzieć przy modyfikacji:
 Hooki wczytują się przy starcie sesji. Po zmianie `settings.json` otwórz raz `/hooks` albo
 zrestartuj Claude Code.
 
+### Drugi hook: `session-start` — mówi, w co wchodzisz
+
+`SessionStart` → `.claude/hooks/session-start.ps1` (Windows) lub `session-start.sh`
+(macOS/Linux). **Niczego nie blokuje** (SessionStart nie umie): robi `git fetch origin` i
+wrzuca do kontekstu agenta stan drzewa, zanim ten zdąży cokolwiek tknąć — HEAD i rozjazd
+względem `origin/{{FILL:MAIN_BRANCH}}`, niezacommitowane pliki *w tym* drzewie, pozostałe
+worktrees z informacją, które są brudne, katalogi-resztki po skasowanych worktrees oraz otwarte
+PR-y (drafty oznaczone). Na koniec dokleja jedną akcję, jeśli jakaś wynika: „jesteś na
+`{{FILL:MAIN_BRANCH}}` → `/start`" albo „branch jest N commitów za `{{FILL:MAIN_BRANCH}}` →
+wciągnij go" (patrz 2.2).
+
+Rozwiązuje to samo, co triage w 2.0 robi ręcznie: bez tego raportu sesja dowiaduje się o
+zmergowanym PR-ze, cudzym worktree albo równoległej sesji tylko wtedy, gdy któraś z tych
+rzeczy już namiesza. Trzy właściwości jak przy guardzie: **fail-open** (błąd = brak wypisu, nie
+blokada startu sesji), **czyste ASCII** w wariancie `.ps1` (ten sam powód co guard.ps1), i
+**testy w pliku** (`session-start.tests.ps1` / `.tests.sh`, oczekiwany ogon `FAILURES: 0`).
+Sieć wyłącza zmienna `HOOK_SKIP_NETWORK=1` (pomija `fetch` i `gh`) — testy dostają wynik
+deterministyczny i nie czekają na sieć.
+
+Worktree'y wykrywa listą katalogów (`Get-ChildItem` / `for d in .../*/`), nie przez
+`git worktree list` — repo w ścieżce ze znakiem spoza ASCII sprawia, że git wypisuje ją
+c-quoted i żadne `Test-Path`/`[ -d ]` jej nie rozwiąże. Katalog bez `.git` **nie jest**
+worktree'em (leży wewnątrz repo, więc `git -C <katalog>` wspina się do drzewa nadrzędnego i
+odpowiada za drzewo GŁÓWNE) — bez tego rozróżnienia porzucony katalog wygląda jak cudzy,
+brudny worktree na chronionym branchu.
+
 ### Co z `.claude/` jest wspólne, a co prywatne
 
-Hook i komendy **muszą** być w repo — inaczej na drugiej maszynie po prostu nie istnieją, a to
+Hooki i komendy **muszą** być w repo — inaczej na drugiej maszynie po prostu nie istnieją, a to
 dokładnie ta cicha awaria, której mają zapobiegać. Podział warstw:
 
 | Ścieżka | Zawartość | W repo? |
 |---|---|---|
-| `.claude/settings.json` | rejestracja hooka (ścieżka przez `${CLAUDE_PROJECT_DIR}`, bez danych osobowych) | **tak** — kontrakt zespołu |
-| `.claude/hooks/`, `.claude/commands/` | guard + jego testy, komendy `/start`…`/setup` | **tak** |
+| `.claude/settings.json` | rejestracja hooków (ścieżka przez `${CLAUDE_PROJECT_DIR}`, bez danych osobowych) | **tak** — kontrakt zespołu |
+| `.claude/hooks/`, `.claude/commands/` | guard + session-start + ich testy, komendy `/start`…`/setup` | **tak** |
 | `.claude/settings.local.json` | osobiste nadpisania (permissions, env, model) | **nie** — gitignored |
 | `.claude/worktrees/` | izolowane checkouty agenta | **nie** — gitignored |
 | `~/.claude/` | konto, tokeny, transkrypty, pamięć agenta | **nigdy** — poza repo |
@@ -204,18 +302,22 @@ Hook działa lokalnie i tylko tam, gdzie ma czym się uruchomić. Niezależnie o
 
 ## 7. Weryfikacja i onboarding
 
-**Test guarda po każdej jego zmianie** (oczekiwany ogon `FAILURES: 0`) — przypadki siedzą
-w pliku, nie w komendzie shella, bo inaczej hook zablokowałby sam test:
+**Test obu hooków po każdej ich zmianie** (oczekiwany ogon `FAILURES: 0` w każdym) — przypadki
+siedzą w pliku, nie w komendzie shella, bo inaczej guard zablokowałby sam test:
 
 ```
 # Windows
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .claude/hooks/guard.tests.ps1
-# macOS / Linux  (wymaga jq albo python3 — bez nich guard cicho przepuszcza wszystko)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .claude/hooks/session-start.tests.ps1
+# macOS / Linux  (wymaga jq albo python3 — bez nich hook cicho przepuszcza/milczy)
 bash .claude/hooks/guard.tests.sh
+bash .claude/hooks/session-start.tests.sh
 ```
 
-**Bramki jakości projektu:** `{{FILL:BUILD_GATE}}` · `{{FILL:TEST_GATE}}`.
-CI odpala je przy każdym PR — dlatego odpal je lokalnie *przed* `/ship`, nie po.
+**Przed `/ship`: `/verify`.** Jedna komenda odpalająca lokalnie te same bramki, które sprawdzi
+CI: `{{FILL:BUILD_GATE}}` · `{{FILL:TEST_GATE}}`, plus testy hooków, jeśli diff ich dotyka.
+Odpal ją lokalnie *przed* `/ship`, nie po — czerwony check na PR-ze to stracona runda
+push → czekanie → fix → push, skoro nikt nikogo nie zatwierdza.
 
 ### Onboarding nowej maszyny
 

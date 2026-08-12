@@ -8,9 +8,10 @@ Gotowy sposób pracy dla repozytorium, które prowadzi **kilka osób, każda prz
 
 | Warstwa | Co robi |
 |---|---|
-| **Cztery komendy** `/start` `/ship` `/deploy` `/rollback` | człowiek nie pisze komend gita; agent sam robi branch, commit, PR, czeka na CI, scala i sprząta |
+| **Pięć komend** `/start` `/verify` `/ship` `/deploy` `/rollback` | człowiek nie pisze komend gita; agent sam robi branch, testy lokalne, commit, PR, czeka na CI, scala i sprząta |
 | **Hook blokujący** (`guard.ps1` + `guard.sh`) | fizycznie nie pozwala commitować na chronionym branchu, zrobić `push --force`, ani zdeployować brudnego drzewa |
-| **Kontrakt** `docs/AGENT-WORKFLOW.md` | jedna strona zasad: dla ludzi sekcja 1, dla agenta reszta |
+| **Hook informacyjny** (`session-start.ps1` + `.sh`) | na starcie każdej sesji melduje agentowi stan drzewa — branch, rozjazd z originem, cudze worktrees, otwarte PR-y — niczego nie blokuje |
+| **Kontrakt** `docs/AGENT-WORKFLOW.md` | jedna strona zasad: dla ludzi sekcja 1, dla agenta reszta (w tym triage: kiedy worktree, kiedy subagent, kiedy handoff) |
 | **CI** | jedyna bramka przed mergem — skoro nikt nikogo nie zatwierdza, to CI decyduje |
 | **Ochrona brancha na GitHubie** | PR obowiązkowy, **0 approvali**, wymagane checki, historia liniowa, reguły obowiązują też adminów |
 | **`/setup`** | onboarding nowej maszyny jedną komendą, idempotentnie |
@@ -37,7 +38,7 @@ agent-workflow-kit/
 ├── INSTALL.md         <- procedura dla agenta-instalatora: recon, kopiowanie, wypełnianie, protection, weryfikacja
 ├── ADAPT.md           <- co jest uniwersalne, tabela placeholderów, pułapki, jak dopisać własny recipe
 ├── template/          <- pliki, które lądują w docelowym repo (z placeholderami {{FILL:…}})
-│   ├── .claude/       <- settings (3 warianty OS), hooks (guard + testy), commands (5 komend)
+│   ├── .claude/       <- settings (3 warianty OS), hooks (guard + session-start + testy), commands (6 komend)
 │   └── docs/AGENT-WORKFLOW.md
 ├── ci-templates/      <- node.yml · python.yml · node-python.yml · minimal.yml
 └── recipes/           <- gotowe /deploy + /rollback per architektura

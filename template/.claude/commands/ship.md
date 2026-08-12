@@ -8,7 +8,8 @@ Publikujesz zrobioną pracę do `{{FILL:REPO_SLUG}}`. Kontrakt:
 **Wykonaj całą sekwencję samodzielnie, bez pytania o zgodę na poszczególne kroki.**
 Nie oznaczaj nikogo jako reviewera i nie czekaj na akceptację — każdy scala własne PR-y sam.
 
-1. **Bramki lokalne** (dokładnie te, które sprawdza CI — inaczej dowiesz się o błędzie dopiero z PR-a):
+1. **Bramki lokalne** (dokładnie te, które sprawdza CI — inaczej dowiesz się o błędzie dopiero
+   z PR-a; jeśli już odpaliłeś `/verify` w tej sesji i było zielone, nie odpalaj drugi raz):
    - build: `{{FILL:BUILD_GATE — komenda, np. `npm run build` w `frontend/`; „brak" jeśli projekt nie ma builda}}`
    - testy: `{{FILL:TEST_GATE — komenda, np. `python -m pytest -q` w `backend/`; „brak" jeśli nie ma testów}}`
 
